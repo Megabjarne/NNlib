@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <time.h>
 
 using namespace std;
 
@@ -12,12 +13,12 @@ int datasize;
 char dataset[170000];
 
 int main(){
-
 	int fd = open("testdata.txt", O_RDONLY);
 	if (fd<0){
 		cout<<"unable to open \"testdata.txt\" file"<<endl;
 		exit(-1);
 	}
+	
 	datasize = read(fd, dataset, 170000);
 	close(fd);
 	if (datasize<=0){
@@ -27,22 +28,26 @@ int main(){
 	
 	cout<<"done reading #"<<datasize<<endl;
 
-	srand(1997);
+	srand(time(NULL));
 	neuralnet net;
 	calculationnet cnet;
 	
+	init(cnet, 286, 3, 286, 256);
+	
 	if (!load(net, "alice.nn")){
+		init(net, 286, 3, 286, 256);
 		randomize(net, 0.5);
 	}
 	
+	int debug=0;
+	
 	float in[286];
-	float memory[30];
 	float out[256];
 	float errsum=0;
-	
 	while (true){
 	
 		for (int i=0;i<datasize-1;i++){
+			
 			for (int k=0;k<256;k++){
 				if (dataset[i] == k){
 					in[k] = 1;
@@ -52,14 +57,14 @@ int main(){
 			}
 		
 			for (int k=256;k<286;k++){
-				in[k] = cnet.hiddens[HLAYERS-1][k].activation;
+				in[k] = cnet.hiddens[cnet.nhlayers-1][k].activation;
 			}
 		
 			for (int k=0; k<256; k++){
 				out[k] = (dataset[i+1] == k)?1:0;
 			}
 		
-			backpropagate(net, cnet, in, out);
+			backpropagate(net, cnet, in, out, 0.1, 0.9);
 		
 			int biggest=0;
 			for (int k=1;k<256;k++){
