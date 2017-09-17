@@ -36,6 +36,13 @@ float actfunc(float n){
 }
 
 void calculate(neuralnet &net, calculationnet &cnet){
+	
+	//replacing the old define-constants
+	int INPUTS  = net.ninputs;
+	int HLAYERS = net.nhlayers;
+	int HIDDENS = net.nhiddens;
+	int OUTPUTS = net.noutputs;
+	
 	//calculate in-hidden
 	for (int hid=0; hid<HIDDENS; hid++){
 		cnet.hiddens[0][hid].netin = 0;
@@ -70,7 +77,14 @@ void calculate(neuralnet &net, calculationnet &cnet){
 	}
 }
 
-void backpropagate(neuralnet &net, calculationnet &cnet, float* input, float* exp_out){
+void backpropagate(neuralnet &net, calculationnet &cnet, float* input, float* exp_out, float learnrate, float momentum){
+	
+	//replacing the old define-constants
+	int INPUTS  = net.ninputs;
+	int HLAYERS = net.nhlayers;
+	int HIDDENS = net.nhiddens;
+	int OUTPUTS = net.noutputs;
+	
 	for (int ins=0; ins<INPUTS; ins++){
 		cnet.input[ins].activation = input[ins];
 	}
@@ -121,7 +135,7 @@ void backpropagate(neuralnet &net, calculationnet &cnet, float* input, float* ex
 			
 			float yps = cnet.output[out].dEdnet;
 			float oi = cnet.hiddens[HLAYERS-1][hin].activation;
-			float dW = yps * oi * LEARNRATE;// * (1-MOMENTUM)   +   MOMENTUM * cnet.dweights_ho[hin][out];
+			float dW = yps * oi * learnrate * (1-momentum)   +   momentum * cnet.dweights_ho[hin][out];
 			
 			net.weights_ho[hin][out] -= dW;
 			
@@ -138,7 +152,7 @@ void backpropagate(neuralnet &net, calculationnet &cnet, float* input, float* ex
 				
 				float yps = cnet.hiddens[layer+1][hout].dEdnet;
 				float oi = cnet.hiddens[layer][hin].activation;
-				float dW = yps * oi * LEARNRATE;// * (1-MOMENTUM)   +   MOMENTUM * cnet.dweights_hh[layer][hin][hout];
+				float dW = yps * oi * learnrate * (1-momentum)   +   momentum * cnet.dweights_hh[layer][hin][hout];
 				
 				net.weights_hh[layer][hin][hout] -= dW;
 				
@@ -155,7 +169,7 @@ void backpropagate(neuralnet &net, calculationnet &cnet, float* input, float* ex
 			
 			float yps = cnet.hiddens[0][hout].dEdnet;
 			float oi = cnet.input[in].activation;
-			float dW = yps * oi * LEARNRATE;// * (1-MOMENTUM)   +   MOMENTUM * cnet.dweights_ih[in][hout];
+			float dW = yps * oi * learnrate * (1-momentum)   +   momentum * cnet.dweights_ih[in][hout];
 			
 			net.weights_ih[in][hout] -= dW;
 			
@@ -170,6 +184,13 @@ float genumb(float range){
 }
 
 void randomize(neuralnet &net, float range){
+	
+	//replacing the old define-constants
+	int INPUTS  = net.ninputs;
+	int HLAYERS = net.nhlayers;
+	int HIDDENS = net.nhiddens;
+	int OUTPUTS = net.noutputs;
+	
 	for (int in=0; in<INPUTS; in++){
 		for (int hout=0; hout<HIDDENS; hout++){
 			net.weights_ih[in][hout] = genumb(range);
@@ -191,7 +212,140 @@ void randomize(neuralnet &net, float range){
 	}
 }
 
+
+void init(neuralnet &net, int _inputs, int _hlayers, int _hiddens, int _outputs){
+	net.ninputs = _inputs;
+	net.nhlayers = _hlayers;
+	net.nhiddens = _hiddens;
+	net.noutputs = _outputs;
+	
+	//weights_ih
+	net.weights_ih = new float*[_inputs];
+	for (int i=0; i<_inputs; i++){
+		net.weights_ih[i] = new float[_hiddens];
+	}
+	
+	//weights_hh
+	net.weights_hh = new float**[_hlayers-1];
+	for (int i=0; i<_hlayers-1; i++){
+		net.weights_hh[i] = new float*[_hiddens];
+		for (int j=0; j<_hiddens; j++){
+			net.weights_hh[i][j] = new float[_hiddens];
+		}
+	}
+	
+	//weights_ho
+	net.weights_ho = new float*[_hiddens];
+	for (int i=0; i<_hiddens; i++){
+		net.weights_ho[i] = new float[_outputs];
+	}
+}
+
+void free(neuralnet &net){
+	//weights_ih
+	for (int i=0; i<net.ninputs; i++){
+		delete net.weights_ih[i];
+	}
+	delete net.weights_ih;
+	
+	//weights_hh
+	for (int i=0; i<net.nhlayers; i++){
+		for (int j=0; j<net.nhiddens; j++){
+			delete net.weights_hh[i][j];
+		}
+		delete net.weights_hh[i];
+	}
+	delete net.weights_hh;
+	
+	//weights_ho
+	for (int i=0; i<net.nhiddens; i++){
+		delete net.weights_ho[i];
+	}
+	delete net.weights_ho;
+}
+
+void init(calculationnet &cnet, int _inputs, int _hlayers, int _hiddens, int _outputs){
+	cnet.ninputs = _inputs;
+	cnet.nhlayers = _hlayers;
+	cnet.nhiddens = _hiddens;
+	cnet.noutputs = _outputs;
+	
+	//input
+	cnet.input = new Node[_inputs];
+	
+	//hiddens
+	cnet.hiddens = new Node*[_hlayers];
+	for (int i=0; i<_hlayers; i++){
+		cnet.hiddens[i] = new Node[_hiddens];
+	}
+	
+	//output
+	cnet.output = new Node[_outputs];
+	
+	//dweights_ih
+	cnet.dweights_ih = new float*[_inputs];
+	for (int i=0; i<_inputs; i++){
+		cnet.dweights_ih[i] = new float[_hiddens];
+	}
+	
+	//dweights_hh
+	cnet.dweights_hh = new float**[_hlayers-1];
+	for (int i=0; i<_hlayers-1; i++){
+		cnet.dweights_hh[i] = new float*[_hiddens];
+		for (int j=0; j<_hiddens; j++){
+			cnet.dweights_hh[i][j] = new float[_hiddens];
+		}
+	}
+	
+	//dweights_ho
+	cnet.dweights_ho = new float*[_hiddens];
+	for (int i=0; i<_hiddens; i++){
+		cnet.dweights_ho[i] = new float[_outputs];
+	}
+}
+
+void free(calculationnet &cnet){
+	int inputs = cnet.ninputs;
+	int hlayers = cnet.nhlayers;
+	int hiddens = cnet.nhiddens;
+	int outputs = cnet.noutputs;
+	
+	//input
+	delete cnet.input;
+	
+	//hiddens
+	for (int i=0; i<hlayers; i++){
+		delete cnet.hiddens[i];
+	}
+	delete cnet.hiddens;
+	
+	//output
+	delete cnet.output;
+	
+	//dweights_ih
+	for (int i=0; i<inputs; i++){
+		delete cnet.dweights_ih[i];
+	}
+	delete cnet.dweights_ih;
+	
+	//dweights_hh
+	for (int i=0; i<hlayers-1; i++){
+		for (int j=0; j<hiddens; j++){
+			delete cnet.dweights_hh[i][j];
+		}
+		delete cnet.dweights_hh[i];
+	}
+	delete cnet.dweights_hh;
+	
+	//dweights_ho
+	for (int i=0; i<hiddens; i++){
+		delete cnet.dweights_ho[i];
+	}
+	delete cnet.dweights_ho;
+}
+
 bool save(neuralnet &net, string filename){
+return false;
 	unsigned char *ptr = (unsigned char*)&net;
 	int fd = open(filename.c_str(), O_CREAT | O_RDWR, 0666);
 	if (fd<0){
@@ -208,6 +362,7 @@ bool save(neuralnet &net, string filename){
 }
 
 bool load(neuralnet &net, string filename){
+return false;
 	unsigned char *ptr = (unsigned char*)&net;
 	int fd = open(filename.c_str(), O_RDWR);
 	if (fd<0){

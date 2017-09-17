@@ -12,7 +12,6 @@ int datasize;
 char dataset[170000];
 
 int main(){
-
 	int fd = open("testdata.txt", O_RDONLY);
 	if (fd<0){
 		cout<<"unable to open \"testdata.txt\" file"<<endl;
@@ -30,6 +29,9 @@ int main(){
 	srand(1997);
 	neuralnet net;
 	calculationnet cnet;
+	
+	init(net, 286, 3, 286, 256);
+	init(cnet, 286, 3, 286, 256);
 	
 	if (!load(net, "alice.nn")){
 		randomize(net, 0.5);
@@ -52,14 +54,14 @@ int main(){
 			}
 		
 			for (int k=256;k<286;k++){
-				in[k] = cnet.hiddens[HLAYERS-1][k].activation;
+				in[k] = cnet.hiddens[cnet.nhlayers-1][k].activation;
 			}
 		
 			for (int k=0; k<256; k++){
 				out[k] = (dataset[i+1] == k)?1:0;
 			}
 		
-			backpropagate(net, cnet, in, out);
+			backpropagate(net, cnet, in, out, 0.1, 0.9);
 		
 			int biggest=0;
 			for (int k=1;k<256;k++){
