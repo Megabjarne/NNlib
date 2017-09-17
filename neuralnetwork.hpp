@@ -9,6 +9,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <cerrno>
+#include <cstdint>
 
 using std::string;
 using std::cout;
@@ -28,7 +29,7 @@ using std::endl;
 
 struct neuralnet{
 	//from -> to
-	int ninputs, nhlayers, nhiddens, noutputs;
+	uint32_t ninputs, nhlayers, nhiddens, noutputs;
 	float **weights_ih;//[INPUTS][HIDDENS];
 	float ***weights_hh;//[HLAYERS-1][HIDDENS][HIDDENS];
 	float **weights_ho;//[HIDDENS][OUTPUTS];
@@ -41,7 +42,7 @@ struct Node{
 };
 
 struct calculationnet{
-	int ninputs, nhlayers, nhiddens, noutputs;
+	uint32_t ninputs, nhlayers, nhiddens, noutputs;
 	Node *input;//[INPUTS];
 	Node **hiddens;//[HLAYERS][HIDDENS];
 	Node *output;//[OUTPUTS];

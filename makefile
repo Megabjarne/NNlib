@@ -1,4 +1,4 @@
 
 all:
-	g++ neuralnetwork.cpp main.cpp -o kjorbar -O0
+	g++ neuralnetwork.cpp main.cpp -o kjorbar -std=c++11
 
