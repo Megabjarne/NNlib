@@ -1,41 +1,17 @@
 #include "neuralnetwork.hpp"
 
-/*
-#define INPUTS 286
-#define HLAYERS 3
-#define HIDDENS 286
-#define OUTPUTS 256
-#define LEARNRATE 0.25
-
-struct neuralnet{
-	//from -> to
-	float weights_ih[INPUTS][HIDDENS];
-	float weights_hh[HLAYERS-1][HIDDENS][HIDDENS];
-	float weights_ho[HIDDENS][OUTPUTS];
-};
-
-struct Node{
-	float netin;
-	float activation;
-	float dEdnet;
-};
-
-struct calculationnet{
-	Node input[INPUTS];
-	Node hiddens[HLAYERS][HIDDENS];
-	Node output[OUTPUTS];
-	
-	float dweights_ih[INPUTS][HIDDENS];
-	float dweights_hh[HLAYERS-1][HIDDENS][HIDDENS];
-	float dweights_ho[HIDDENS][OUTPUTS];
-};
-*/
 
 float actfunc(float n){
 	return 1/(1 + pow(2.71, -n));
 }
 
-void calculate(neuralnet &net, calculationnet &cnet){
+void feed(neuralnet &net, calculationnet &cnet, float *input){
+	for (int i=0; i<net.ninputs; i++){
+		cnet.input[i].activation = input[i];
+	}
+}
+
+void propagate(neuralnet &net, calculationnet &cnet){
 	
 	//replacing the old define-constants
 	uint32_t INPUTS  = net.ninputs;
@@ -77,63 +53,63 @@ void calculate(neuralnet &net, calculationnet &cnet){
 	}
 }
 
-void backpropagate(neuralnet &net, calculationnet &cnet, float* input, float* exp_out, float learnrate, float momentum){
+void deriveerror(neuralnet &net, calculationnet &cnet, dEdnetnet& denet, float *exp_out){
+	//calculate dEdnet for each outputnode
+	for (uint32_t out=0; out<net.noutputs; out++){
+		float& o = cnet.output[out].activation;
+		denet.output[out] = (o - exp_out[out])*o*(1-o);
+	}
+	//calculate dEdnet for hidden-out
+	for (uint32_t hid=0; hid<net.nhiddens; hid++){
+		
+		denet.hiddens[net.nhlayers-1][hid] = 0;
+		
+		for (uint32_t out=0; out<net.noutputs; out++){
+			
+			denet.hiddens[net.nhlayers-1][hid] += denet.output[out] * net.weights_ho[hid][out];
+			
+		}
+		Node &n = cnet.hiddens[net.nhlayers-1][hid];
+		
+		denet.hiddens[net.nhlayers-1][hid] *= n.activation * (1 - n.activation);
+	}
+	//calculate dEdnet for hidden-hidden
+	for (uint32_t layer = net.nhlayers-2; layer!=4294967295; layer--){
+		for (uint32_t hin=0; hin<net.nhiddens; hin++){
+			
+			Node &n = cnet.hiddens[layer][hin];
+			denet.hiddens[layer][hin] = 0;
+			
+			for (uint32_t hout=0; hout<net.nhiddens; hout++){
+				denet.hiddens[layer][hin] += denet.hiddens[layer+1][hout] * net.weights_hh[layer][hin][hout];
+			}
+			
+			denet.hiddens[layer][hin] *= n.activation * (1 - n.activation);
+		}
+		
+	}
+}
+
+void backpropagate(neuralnet &net, calculationnet &cnet, dEdnetnet &denet, dwnet &wnet, float learnrate, float momentum){
 	
 	//replacing the old define-constants
 	uint32_t INPUTS  = net.ninputs;
 	uint32_t HLAYERS = net.nhlayers;
 	uint32_t HIDDENS = net.nhiddens;
 	uint32_t OUTPUTS = net.noutputs;
-	for (uint32_t ins=0; ins<INPUTS; ins++){
-		cnet.input[ins].activation = input[ins];
-	}
-	calculate(net, cnet);
-	//calculate dEdnet for each outputnode
-	for (uint32_t out=0; out<OUTPUTS; out++){
-		float& o = cnet.output[out].activation;
-		cnet.output[out].dEdnet = (o - exp_out[out])*o*(1-o);
-	}
-	//calculate dEdnet for hidden-out
-	for (uint32_t hid=0; hid<HIDDENS; hid++){
-		
-		Node &n = cnet.hiddens[HLAYERS-1][hid];
-		n.dEdnet = 0;
-		
-		for (uint32_t out=0; out<OUTPUTS; out++){
-			
-			n.dEdnet += cnet.output[out].dEdnet * net.weights_ho[hid][out];
-			
-		}
-		
-		n.dEdnet *= n.activation * (1 - n.activation);
-	}
-	//calculate dEdnet for hidden-hidden
-	for (uint32_t layer = HLAYERS-2; layer!=4294967295; layer--){
-		for (uint32_t hin=0; hin<HIDDENS; hin++){
-			Node &n = cnet.hiddens[layer][hin];
-			n.dEdnet = 0;
-			for (uint32_t hout=0; hout<HIDDENS; hout++){
-				n.dEdnet += cnet.hiddens[layer+1][hout].dEdnet * net.weights_hh[layer][hin][hout];
-			}
-			
-			n.dEdnet *= n.activation * (1 - n.activation);
-		}
-		
-	}
-	//no need to calculate dEdnet for the inputs
 	
 	//modify hidden-out weights
 	for (uint32_t hin=0; hin<HIDDENS; hin++){
 		
 		for (uint32_t out=0; out<OUTPUTS; out++){
 			
-			float yps = cnet.output[out].dEdnet;
+			float yps = denet.output[out];
 			float oi = cnet.hiddens[HLAYERS-1][hin].activation;
-			float dW = yps * oi * learnrate * (1-momentum)   +   momentum * cnet.dweights_ho[hin][out];
+			float dW = yps * oi * learnrate * (1-momentum)   +   momentum * wnet.dweights_ho[hin][out];
 			
 			net.weights_ho[hin][out] -= dW;
 			
-			cnet.dweights_ho[hin][out] = dW;
+			wnet.dweights_ho[hin][out] = dW;
 		}
 		
 	}
@@ -144,13 +120,13 @@ void backpropagate(neuralnet &net, calculationnet &cnet, float* input, float* ex
 			
 			for (uint32_t hout=0; hout<HIDDENS; hout++){
 				
-				float yps = cnet.hiddens[layer+1][hout].dEdnet;
+				float yps = denet.hiddens[layer+1][hout];
 				float oi = cnet.hiddens[layer][hin].activation;
-				float dW = yps * oi * learnrate * (1-momentum)   +   momentum * cnet.dweights_hh[layer][hin][hout];
+				float dW = yps * oi * learnrate * (1-momentum)   +   momentum * wnet.dweights_hh[layer][hin][hout];
 				
 				net.weights_hh[layer][hin][hout] -= dW;
 				
-				cnet.dweights_hh[layer][hin][hout] = dW;
+				wnet.dweights_hh[layer][hin][hout] = dW;
 			}
 			
 		}
@@ -161,13 +137,13 @@ void backpropagate(neuralnet &net, calculationnet &cnet, float* input, float* ex
 		
 		for (uint32_t hout = 0; hout<HIDDENS; hout++){
 			
-			float yps = cnet.hiddens[0][hout].dEdnet;
+			float yps = denet.hiddens[0][hout];
 			float oi = cnet.input[in].activation;
-			float dW = yps * oi * learnrate * (1-momentum)   +   momentum * cnet.dweights_ih[in][hout];
+			float dW = yps * oi * learnrate * (1-momentum)   +   momentum * wnet.dweights_ih[in][hout];
 			
 			net.weights_ih[in][hout] -= dW;
 			
-			cnet.dweights_ih[in][hout] = dW;
+			wnet.dweights_ih[in][hout] = dW;
 		}
 		
 	}
@@ -258,11 +234,11 @@ void free(neuralnet &net){
 	delete net.weights_ho;
 }
 
-void init(calculationnet &cnet, int _inputs, int _hlayers, int _hiddens, int _outputs){
-	cnet.ninputs = _inputs;
-	cnet.nhlayers = _hlayers;
-	cnet.nhiddens = _hiddens;
-	cnet.noutputs = _outputs;
+void init(calculationnet &cnet, neuralnet &nnet){
+	int _inputs  = nnet.ninputs;
+	int _hlayers = nnet.nhlayers;
+	int _hiddens = nnet.nhiddens;
+	int _outputs = nnet.noutputs;
 	
 	//input
 	cnet.input = new Node[_inputs];
@@ -275,34 +251,13 @@ void init(calculationnet &cnet, int _inputs, int _hlayers, int _hiddens, int _ou
 	
 	//output
 	cnet.output = new Node[_outputs];
-	
-	//dweights_ih
-	cnet.dweights_ih = new float*[_inputs];
-	for (uint32_t i=0; i<_inputs; i++){
-		cnet.dweights_ih[i] = new float[_hiddens];
-	}
-	
-	//dweights_hh
-	cnet.dweights_hh = new float**[_hlayers-1];
-	for (uint32_t i=0; i<_hlayers-1; i++){
-		cnet.dweights_hh[i] = new float*[_hiddens];
-		for (uint32_t j=0; j<_hiddens; j++){
-			cnet.dweights_hh[i][j] = new float[_hiddens];
-		}
-	}
-	
-	//dweights_ho
-	cnet.dweights_ho = new float*[_hiddens];
-	for (uint32_t i=0; i<_hiddens; i++){
-		cnet.dweights_ho[i] = new float[_outputs];
-	}
 }
 
-void free(calculationnet &cnet){
-	uint32_t inputs = cnet.ninputs;
-	uint32_t hlayers = cnet.nhlayers;
-	uint32_t hiddens = cnet.nhiddens;
-	uint32_t outputs = cnet.noutputs;
+void free(calculationnet &cnet, neuralnet &nnet){
+	uint32_t inputs = nnet.ninputs;
+	uint32_t hlayers = nnet.nhlayers;
+	uint32_t hiddens = nnet.nhiddens;
+	uint32_t outputs = nnet.noutputs;
 	
 	//input
 	delete cnet.input;
@@ -315,43 +270,80 @@ void free(calculationnet &cnet){
 	
 	//output
 	delete cnet.output;
-	
-	//dweights_ih
-	for (uint32_t i=0; i<inputs; i++){
-		delete cnet.dweights_ih[i];
-	}
-	delete cnet.dweights_ih;
-	
-	//dweights_hh
-	for (uint32_t i=0; i<hlayers-1; i++){
-		for (uint32_t j=0; j<hiddens; j++){
-			delete cnet.dweights_hh[i][j];
-		}
-		delete cnet.dweights_hh[i];
-	}
-	delete cnet.dweights_hh;
-	
-	//dweights_ho
-	for (uint32_t i=0; i<hiddens; i++){
-		delete cnet.dweights_ho[i];
-	}
-	delete cnet.dweights_ho;
 }
 
-/*
-struct neuralnet{
-	//from -> to
-	uint32_t ninputs, nhlayers, nhiddens, noutputs;
-	float **weights_ih;//[INPUTS][HIDDENS];
-	float ***weights_hh;//[HLAYERS-1][HIDDENS][HIDDENS];
-	float **weights_ho;//[HIDDENS][OUTPUTS];
-};
-*/
+void init(dEdnetnet &dnet, neuralnet &nnet){
+	dnet.input = new float[nnet.ninputs];
+	
+	dnet.hiddens = new float*[nnet.nhlayers];
+	for (int i=0; i<nnet.nhlayers; i++){
+		dnet.hiddens[i] = new float[nnet.nhiddens];
+	}
+	
+	dnet.output = new float[nnet.noutputs];
+}
+
+void free(dEdnetnet &dnet, neuralnet &nnet){
+	delete dnet.input;
+	for (int i=0; i<nnet.nhlayers; i++){
+		delete dnet.hiddens[i];
+	}
+	delete dnet.hiddens;
+	delete dnet.output;
+}
+
+
+void init(dwnet &dnet, neuralnet &nnet){
+	
+	//dweights_ih
+	dnet.dweights_ih = new float*[nnet.ninputs];
+	for (uint32_t i=0; i<nnet.ninputs; i++){
+		dnet.dweights_ih[i] = new float[nnet.nhiddens];
+	}
+	
+	//dweights_hh
+	dnet.dweights_hh = new float**[nnet.nhlayers-1];
+	for (uint32_t i=0; i<nnet.nhlayers-1; i++){
+		dnet.dweights_hh[i] = new float*[nnet.nhiddens];
+		for (uint32_t j=0; j<nnet.nhiddens; j++){
+			dnet.dweights_hh[i][j] = new float[nnet.nhiddens];
+		}
+	}
+	
+	//dweights_ho
+	dnet.dweights_ho = new float*[nnet.nhiddens];
+	for (uint32_t i=0; i<nnet.nhiddens; i++){
+		dnet.dweights_ho[i] = new float[nnet.noutputs];
+	}
+}
+
+void free(dwnet &dnet, neuralnet &nnet){
+	//dweights_ih
+	for (uint32_t i=0; i<nnet.ninputs; i++){
+		delete dnet.dweights_ih[i];
+	}
+	delete dnet.dweights_ih;
+	
+	//dweights_hh
+	for (uint32_t i=0; i<nnet.nhlayers-1; i++){
+		for (uint32_t j=0; j<nnet.nhiddens; j++){
+			delete dnet.dweights_hh[i][j];
+		}
+		delete dnet.dweights_hh[i];
+	}
+	delete dnet.dweights_hh;
+	
+	//dweights_ho
+	for (uint32_t i=0; i<nnet.nhiddens; i++){
+		delete dnet.dweights_ho[i];
+	}
+	delete dnet.dweights_ho;
+}
 
 bool save(neuralnet &net, string filename){
 	int fd = open(filename.c_str(), O_CREAT | O_RDWR, 0666);
 	if (fd<0){
-		cout<<"unable to open save file: "<<filename<<endl<<"	errno: "<<errno<<endl;
+		//cout<<"unable to open save file: "<<filename<<endl<<"	errno: "<<errno<<endl;
 		return false;
 	}
 	//save dimentions
@@ -386,16 +378,14 @@ bool save(neuralnet &net, string filename){
 bool load(neuralnet &net, string filename){
 	int fd = open(filename.c_str(), O_RDWR);
 	if (fd<0){
-		cout<<"unable to open load file: "<<filename<<endl<<"	errno: "<<errno<<endl;
+		//cout<<"unable to open load file: "<<filename<<endl<<"	errno: "<<errno<<endl;
 		return false;
 	}
-	cout<<"reading size:\n";
 	//save dimentions
 	read(fd, &net.ninputs, sizeof(net.ninputs));
 	read(fd, &net.nhlayers, sizeof(net.nhlayers));
 	read(fd, &net.nhiddens, sizeof(net.nhiddens));
 	read(fd, &net.noutputs, sizeof(net.noutputs));
-	cout<<"read "<<net.ninputs<<" "<<net.nhlayers<<" "<<net.nhiddens<<" "<<net.noutputs<<'\n';
 	
 	//weights_ih
 	net.weights_ih = new float*[net.ninputs];
@@ -426,11 +416,4 @@ bool load(neuralnet &net, string filename){
 	}
 	return true;
 }
-
-
-
-
-
-
-
 
