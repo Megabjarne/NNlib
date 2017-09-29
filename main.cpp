@@ -1,95 +1,59 @@
 #include "neuralnetwork.hpp"
 #include <iostream>
-#include <stdlib.h>
-#include <cmath>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <time.h>
 
 using namespace std;
 
-int datasize;
-char dataset[170000];
-
 int main(){
-	int fd = open("testdata.txt", O_RDONLY);
-	if (fd<0){
-		cout<<"unable to open \"testdata.txt\" file"<<endl;
-		exit(-1);
-	}
-	
-	datasize = read(fd, dataset, 170000);
-	close(fd);
-	if (datasize<=0){
-		cout<<"unable to read from testdata.txt-file"<<endl;
-		exit(-1);
-	}
-	
-	cout<<"done reading #"<<datasize<<endl;
-
 	srand(time(NULL));
+	
+	//we create all the necessary structs
 	neuralnet net;
 	calculationnet cnet;
+	dwnet dnet;
+	dEdnetnet dednet;
 	
-	init(cnet, 286, 3, 286, 256);
+	//We create a network with 16 inputs, 2 hidden layers, 16 hidden nodes in each layers, 4 outputs
+	init(net, 16, 2, 16, 4);
+	//we randomize the weights to values between -1 and 1
+	randomize(net, 1);
 	
-	if (!load(net, "alice.nn")){
-		init(net, 286, 3, 286, 256);
-		randomize(net, 0.5);
-	}
+	//we initialize the calculationnet, dEdnet-net, and the dwnet
+	init(cnet, net);
+	init(dnet, net);
+	init(dednet, net);
 	
-	int debug=0;
+	//we create input and outputvectors, with the appropriate sizes
+	float in[16];
+	float out[4];
 	
-	float in[286];
-	float out[256];
-	float errsum=0;
 	while (true){
-	
-		for (int i=0;i<datasize-1;i++){
-			
-			for (int k=0;k<256;k++){
-				if (dataset[i] == k){
-					in[k] = 1;
-				}else{
-					in[k] = 0;
-				}
-			}
-		
-			for (int k=256;k<286;k++){
-				in[k] = cnet.hiddens[cnet.nhlayers-1][k].activation;
-			}
-		
-			for (int k=0; k<256; k++){
-				out[k] = (dataset[i+1] == k)?1:0;
-			}
-		
-			backpropagate(net, cnet, in, out, 0.1, 0.9);
-		
-			int biggest=0;
-			for (int k=1;k<256;k++){
-				errsum += pow( cnet.output[k].activation-out[k], 2.0 );
-				if (cnet.output[k].activation > cnet.output[biggest].activation){
-					biggest = k;
-				}
-			}
-			
-			if (i % 8192 < 512)
-				cout<<(char)biggest<<flush;
-			if (i % 8192 == 512-1)
-				cout<<endl;
-			
-			if (i % 8192 == 8192-1){
-				cout<<"\nSAVING\n";
-				save(net, "alice.nn");
-				cout<<"error: "<<errsum/8192<<endl<<endl;
-				errsum=0;
-			}
+		//we pick a random value to train with
+		int val = rand()%16;
+		//we write a one to the val'th in-value and zeros to the others
+		for (int k=0; k<16; k++){
+			in[k] = (k == val);
 		}
-		cout<<"\nSAVING\n";
-		save(net, "alice.nn");
-		cout<<"error: "<<errsum/8192<<endl<<endl;
-		errsum=0;
+		//we write the binary pattern of the val to the outputvector
+		for (int k=0; k<4;k++){
+			out[k] = ((val & (1<<(3-k))) != 0);
+		}
+		
+		//we "place" the inputvector in the calculation net
+		feed(net, cnet, in);
+		//we propagate the input through the network
+		propagate(net, cnet);
+		//we derive the error for each node in the network, has to be done in order to do backpropagation
+		deriveerror(net, cnet, dednet, out);
+		//we use what we found from the deriveerror-call and do the actual weight changing, with a certain learnrate and momentum
+		backpropagate(net, cnet, dednet, dnet, 0.1, 0.8);
+		
+		//we write the input value, and the given output from the network
+		cout<<val<<" -> "
+			<<((int)(cnet.output[0].activation>0.5))
+			<<((int)(cnet.output[1].activation>0.5))
+			<<((int)(cnet.output[2].activation>0.5))
+			<<((int)(cnet.output[3].activation>0.5))<<endl;
 	}
 	
 	return 0;

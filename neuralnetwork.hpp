@@ -2,31 +2,15 @@
 #define _neuralnetwork_hpp
 
 #include <cmath>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string>
-#include <iostream>
 #include <unistd.h>
-#include <cerrno>
 #include <cstdint>
 
 using std::string;
-using std::cout;
-using std::endl;
 
-/*
-#define INPUTS 286
-#define HLAYERS 3
-#define HIDDENS 286
-#define OUTPUTS 256
-#define LEARNRATE 0.05
-#define MOMENTUM 0.95
-*/
-
-//nodes: 286 + 286*3 + 256 = 1400
-//links: 286*286 + 2*286*286 + 286*256 = 245644
-
+//Holds the weights, is basically the neural network
 struct neuralnet{
 	//from -> to
 	uint32_t ninputs, nhlayers, nhiddens, noutputs;
@@ -35,18 +19,28 @@ struct neuralnet{
 	float **weights_ho;//[HIDDENS][OUTPUTS];
 };
 
+//holds the values of a node
 struct Node{
 	float netin;
 	float activation;
-	float dEdnet;
 };
 
+//stores the values of the network for when propagating, in addition to holding the feeded values and outputvalues
 struct calculationnet{
-	uint32_t ninputs, nhlayers, nhiddens, noutputs;
 	Node *input;//[INPUTS];
 	Node **hiddens;//[HLAYERS][HIDDENS];
 	Node *output;//[OUTPUTS];
-	
+};
+
+//Stores the partial derivative of the error of the nodes of a network in regard to its net input
+struct dEdnetnet{
+	float *input;//[INPUTS];
+	float **hiddens;//[HLAYERS][HIDDENS];
+	float *output;//[OUTPUTS];
+};
+
+//Stores the previous change in each weight, used for when backpropagating with momentum
+struct dwnet{
 	float **dweights_ih;//[INPUTS][HIDDENS];
 	float ***dweights_hh;//[HLAYERS-1][HIDDENS][HIDDENS];
 	float **dweights_ho;//[HIDDENS][OUTPUTS];
@@ -54,9 +48,13 @@ struct calculationnet{
 
 float actfunc(float n);
 
-void calculate(neuralnet &net, calculationnet &cnet);
+void feed(neuralnet &net, calculationnet &cnet, float *input);
 
-void backpropagate(neuralnet &net, calculationnet &cnet, float* input, float* exp_out, float learnrate, float momentum);
+void propagate(neuralnet &net, calculationnet &cnet);
+
+void deriveerror(neuralnet &net, calculationnet &cnet, dEdnetnet& denet, float *exp_out);
+
+void backpropagate(neuralnet &net, calculationnet &cnet, dEdnetnet &denet, dwnet &wnet, float learnrate, float momentum);
 
 void randomize(neuralnet &net, float range);
 
@@ -64,9 +62,17 @@ void init(neuralnet &net, int _inputs, int _hlayers, int _hiddens, int _outputs)
 
 void free(neuralnet &net);
 
-void init(calculationnet &cnet, int _inputs, int _hlayers, int _hiddens, int _outputs);
+void init(calculationnet &cnet, neuralnet &nnet);
 
-void free(calculationnet &cnet);
+void free(calculationnet &cnet, neuralnet &nnet);
+
+void init(dEdnetnet &dnet, neuralnet &nnet);
+
+void free(dEdnetnet &dnet, neuralnet &nnet);
+
+void init(dwnet &dnet, neuralnet &nnet);
+
+void free(dwnet &dnet, neuralnet &nnet);
 
 bool save(neuralnet &net, string filename);
 
