@@ -1,61 +1,95 @@
-#include "neuralnetwork.hpp"
 #include <iostream>
-#include <time.h>
+#include <cstring>
+
+#include "neuralnetwork.hpp"
 
 using namespace std;
 
-int main(){
-	srand(time(NULL));
-	
-	//we create all the necessary structs
-	neuralnet net;
-	calculationnet cnet;
-	dwnet dnet;
-	dEdnetnet dednet;
-	
-	//We create a network with 16 inputs, 2 hidden layers, 16 hidden nodes in each layers, 4 outputs
-	init(net, 16, 2, 16, 4);
-	//we randomize the weights to values between -1 and 1
-	randomize(net, 1);
-	
-	//we initialize the calculationnet, dEdnet-net, and the dwnet
-	init(cnet, net);
-	init(dnet, net);
-	init(dednet, net);
-	
-	//we create input and outputvectors, with the appropriate sizes
-	float in[16];
-	float out[4];
-	
-	while (true){
-		//we pick a random value to train with
-		int val = rand()%16;
-		//we write a one to the val'th in-value and zeros to the others
-		for (int k=0; k<16; k++){
-			in[k] = (k == val);
-		}
-		//we write the binary pattern of the val to the outputvector
-		for (int k=0; k<4;k++){
-			out[k] = ((val & (1<<(3-k))) != 0);
-		}
-		
-		//we "place" the inputvector in the calculation net
-		feed(net, cnet, in);
-		//we propagate the input through the network
-		propagate(net, cnet);
-		//we derive the error for each node in the network, has to be done in order to do backpropagation
-		deriveerror(net, cnet, dednet, out);
-		//we use what we found from the deriveerror-call and do the actual weight changing, with a certain learnrate and momentum
-		backpropagate(net, cnet, dednet, dnet, 0.1, 0.8);
-		
-		//we write the input value, and the given output from the network
-		cout<<val<<" -> "
-			<<((int)(cnet.output[0].activation>0.5))
-			<<((int)(cnet.output[1].activation>0.5))
-			<<((int)(cnet.output[2].activation>0.5))
-			<<((int)(cnet.output[3].activation>0.5))<<endl;
-	}
-	
+void handleArguments(int narg, char** args);
+void printhelp();
+void loadTestData(char* filename);
+void loadNetwork(char* filename);
+
+char defaultvalids[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,.- ";
+
+char *valids = defaultvalids;
+int validcount = sizeof(defaultvalids);
+char *savepath = NULL;
+int cyclecount = 0;
+int savecycle = 0;
+
+int currentcycle = 0;
+
+
+int main(int narg, char** args){
+	handleArguments(narg, args);
 	return 0;
+}
+
+
+void handleArguments(int narg, char** args){
+	int i=1;
+	while (i<narg){
+		
+		if (strcmp(args[i], "-h")==0){
+			printhelp();
+		}else
+		if (strcmp(args[i], "-f")==0){
+			if (i+1!=narg)
+				exit(-1);//loadTestData(args[i+1]);
+			i++;
+		}else
+		if (strcmp(args[i], "-l")==0){
+			if (i+1!=narg)
+				exit(-1);//loadNetwork(args[i+1]);
+			i++;
+		}else
+		if (strcmp(args[i], "-s")==0){
+			i++;
+			if (i!=narg){
+				savepath = new char[strlen(args[i])+1];
+				memcpy(savepath, args[i], strlen(args[i])+1);
+			}
+		}else
+		if (strcmp(args[i], "-c")==0){
+			i++;
+			if (i!=narg){
+				cyclecount = atoi(args[i]);
+			}
+		}else
+		if (strcmp(args[i], "-n")==0){
+			i++;
+			if (i!=narg){
+				savecycle = atoi(args[i]);
+			}
+		}else
+		if (strcmp(args[i], "-v")==0){
+			i++;
+			if (i!=narg){
+				validcount = strlen(args[i]);
+				valids = new char[validcount+1];
+				memcpy(valids, args[i], validcount+1);
+			}
+		}
+		
+		i++;
+	}
+}
+
+void printhelp(){
+	cout<<
+"nn [action] [arguments]\n"<<
+"ACTIONS:\n"<<
+"  train           -Train network\n"<<
+"  generate        -Generate text\n\n"<<
+"ARGUMENTS\n"<<
+"  -h              show this menu\n"<<
+"  -f [filename]   select file for testdata\n"<<
+"  -l [filename]   select file to load network from\n"<<
+"  -s [filename]   select file to save network to\n"<<
+"  -c [number]     cycles to do, either train or generate, 0 for infinite, default is infinite\n"<<
+"  -n [number]     if savefile is given, save network every n cycles, only when training, 0 is never, default is never\n"<<
+"  -v [string]     valid characters, coherent string of characters to be used as inputs, default is a-z, A-Z, 0-9 and '., '\n"<<
+"  -d [dimentions] specify 'dimentions' of new network, in format 'characters in:hidden layers:hiddens'\n";
 }
 
